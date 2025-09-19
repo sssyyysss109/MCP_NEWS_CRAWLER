@@ -2,7 +2,8 @@ name: Security News Automation
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # 매일 00:00 UTC 실행 (한국 09:00)
+    #- cron: "0 0 * * *"   # 매일 00:00 UTC 실행 (한국 09:00)
+    - cron: "*/5 * * * *"   # 매 5분마다 실행
   workflow_dispatch:
 
 jobs:
