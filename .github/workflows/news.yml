@@ -20,13 +20,11 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-        working-directory: mcp-server 
 
       - name: Run script
         run: |
           echo "CLAUDE_API_KEY: ${CLAUDE_API_KEY}"
           node mcp-server.js
-        working-directory: mcp-server 
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
