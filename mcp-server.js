@@ -4,64 +4,59 @@ import { Client } from "@notionhq/client";
 
 dotenv.config();
 
-// 🔑 환경변수
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
-// Notion 클라이언트
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// 🔎 Firecrawl로 보안뉴스 목록 가져오기
+// 🔎 Firecrawl Search → 기사 URL 가져오기
 async function getLatestNewsUrls() {
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url: "https://www.boannews.com/media/t_list.asp",
-      extract: false,
-      render: true,
-    }),
-  });
-
-  const data = await res.json();
-  const html = data?.html ?? "";
-
-  // 정규식으로 상위 3개 기사 추출
-  const matches = html.matchAll(
-    /<a[^>]*href="(\/media\/view\.asp\?idx=\d+)"[^>]*class="news_txt"[^>]*>(.*?)<\/a>/g
-  );
-
-  const results = [];
-  for (const m of matches) {
-    results.push({
-      url: "https://www.boannews.com" + m[1],
-      title: m[2].trim(),
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: "site:boannews.com",  // ✅ 단순히 도메인 검색
+        num_results: 3,
+      }),
     });
-    if (results.length >= 3) break;
-  }
 
-  console.log("📌 추출된 기사:", results);
-  return results;
+    const data = await res.json();
+    const results = data?.results?.map(r => ({
+      title: r.title,
+      url: r.url,
+    })) ?? [];
+
+    console.log("📌 Firecrawl 검색 결과:", results);
+    return results;
+  } catch (err) {
+    console.error("🔥 Firecrawl 검색 오류:", err);
+    return [];
+  }
 }
 
-// 📄 기사 본문 가져오기
+// 📄 Firecrawl Scrape → 본문 추출
 async function extractArticleContent(url) {
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ url, extract: true }),
-  });
-
-  const data = await res.json();
-  return data?.content ?? "❗본문 없음";
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url, extract: true }),
+    });
+    const data = await res.json();
+    return data?.content ?? "❗본문 없음";
+  } catch (err) {
+    console.error("🔥 Firecrawl 본문 추출 오류:", err);
+    return "❗본문 없음";
+  }
 }
 
 // 🤖 Claude 요약
@@ -112,13 +107,13 @@ async function saveToNotion({ title, summary, url }) {
   console.log(`✅ Notion 저장 완료: ${title}`);
 }
 
-// 🚀 전체 실행 파이프라인
+// 🚀 실행
 async function runPipeline() {
-  console.log("🚀 보안뉴스 수집 시작...");
+  console.log("🚀 Firecrawl 기반 보안뉴스 수집 시작...");
   const articles = await getLatestNewsUrls();
 
   for (const { title, url } of articles) {
-    console.log(`📰 기사 처리중: ${title} (${url})`);
+    console.log(`📰 기사: ${title} (${url})`);
     const content = await extractArticleContent(url);
     if (!content || content.startsWith("❗")) {
       console.warn("본문 없음, 건너뜀");
@@ -128,7 +123,7 @@ async function runPipeline() {
     await saveToNotion({ title, summary, url });
   }
 
-  console.log("✅ 전체 작업 완료 (크롤링 → 요약 → Notion)");
+  console.log("✅ 전체 완료 (Firecrawl → Claude → Notion)");
 }
 
 runPipeline();
