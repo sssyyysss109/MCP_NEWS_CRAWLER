@@ -1,26 +1,20 @@
 import dotenv from "dotenv";
 import fetch from "node-fetch";
 import { Client } from "@notionhq/client";
-import { parseStringPromise } from 'xml2js';
+import * as cheerio from "cheerio";
 
 dotenv.config();
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
-console.log('API Key Test:');
-console.log('FIRECRAWL_API_KEY:', FIRECRAWL_API_KEY ? 'OK' : 'MISSING');
-console.log('CLAUDE_API_KEY:', CLAUDE_API_KEY ? 'OK' : 'MISSING');
-console.log('NOTION_API_KEY:', NOTION_API_KEY ? 'OK' : 'MISSING');
-console.log('NOTION_DATABASE_ID:', NOTION_DATABASE_ID ? 'OK' : 'MISSING');
-
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// 🔎 Firecrawl Scrape → RSS 피드에서 기사 URL과 제목 가져오기
-async function getLatestNewsFromRss() {
-  const rssUrl = "https://www.boannews.com/rss/all_rss.xml";
+// 🔎 Firecrawl Scrape → HTML 페이지에서 기사 목록 가져오기
+async function getLatestNewsFromHtml() {
+  const url = "https://www.boannews.com/media/list.asp?kind=1";
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
@@ -28,36 +22,42 @@ async function getLatestNewsFromRss() {
         Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ url: rssUrl }),
+      body: JSON.stringify({ url, pageOptions: { onlyMainContent: true } }),
     });
 
     const data = await res.json();
-    const xmlContent = data?.content;
+    const htmlContent = data?.content;
 
-    if (!xmlContent) {
-      console.error("🔥 RSS 스크랩 실패: 본문이 비어있습니다.");
+    if (!htmlContent) {
+      console.error("🔥 Firecrawl 스크랩 실패: 본문이 비어있습니다.");
       return [];
     }
 
-    // 📌 이 부분을 추가
-    console.log("📌 Firecrawl이 스크랩한 XML 내용:", xmlContent); 
+    const $ = cheerio.load(htmlContent);
+    const articles = [];
+    
+    // HTML 구조에 맞춰 기사 제목과 URL을 추출합니다.
+    $('.news_list').find('a.news_list_tit').each((index, element) => {
+      if (articles.length >= 3) return false;
+      
+      const title = $(element).text().trim();
+      const relativeUrl = $(element).attr('href');
+      const absoluteUrl = `https://www.boannews.com/media/${relativeUrl}`;
 
-    // xml2js 라이브러리로 XML 파싱
-    const result = await parseStringPromise(xmlContent);
-    const articles = result.rss.channel[0].item.slice(0, 3).map(item => ({
-      title: item.title[0],
-      url: item.link[0],
-    }));
+      if (title && absoluteUrl) {
+        articles.push({ title, url: absoluteUrl });
+      }
+    });
 
-    console.log("📌 RSS에서 추출한 최신 기사:", articles);
+    console.log("📌 HTML 페이지에서 추출한 최신 기사:", articles);
     return articles;
   } catch (err) {
-    console.error("🔥 RSS 스크랩 오류:", err);
+    console.error("🔥 HTML 스크랩 오류:", err);
     return [];
   }
 }
 
-// 📄 Firecrawl Scrape → 본문 추출
+// 📄 Firecrawl Scrape → 본문 추출 (기존 함수 재사용)
 async function extractArticleContent(url) {
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -76,13 +76,13 @@ async function extractArticleContent(url) {
   }
 }
 
-// 🤖 Claude 요약
+// 🤖 Claude 요약 (기존 함수 재사용)
 async function summarizeWithClaude(content) {
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": CLAUDE_API_KEY,
+        "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
@@ -106,23 +106,23 @@ async function summarizeWithClaude(content) {
   }
 }
 
-// 📝 Notion 저장
+// 📝 Notion 저장 (기존 함수 재사용)
 async function saveToNotion({ title, summary, url }) {
   const today = new Date().toISOString();
   try {
     await notion.pages.create({
       parent: { database_id: NOTION_DATABASE_ID },
       properties: {
-        제목: {
+        "제목": {
           title: [{ text: { content: title } }],
         },
-        날짜: {
+        "날짜": {
           date: { start: today },
         },
-        URL: {
+        "URL": {
           url: url,
         },
-        내용: {
+        "내용": {
           rich_text: [{ text: { content: summary } }],
         },
       },
@@ -136,7 +136,7 @@ async function saveToNotion({ title, summary, url }) {
 // 🚀 실행
 async function runPipeline() {
   console.log("🚀 Firecrawl 기반 보안뉴스 수집 시작...");
-  const articles = await getLatestNewsFromRss();
+  const articles = await getLatestNewsFromHtml();
 
   for (const { title, url } of articles) {
     console.log(`📰 기사: ${title} (${url})`);
