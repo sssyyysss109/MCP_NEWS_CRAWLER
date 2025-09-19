@@ -14,7 +14,7 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const notion = new Client({ auth: NOTION_API_KEY });
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // 모델 이름을 'gemini-1.0-pro'로 변경했습니다.
-const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 // 🔎 HTML 페이지에서 기사 목록 가져오기 (인코딩 문제 해결)
 async function getLatestNewsFromHtml() {
