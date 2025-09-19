@@ -24,11 +24,11 @@ jobs:
 
       - name: Run script
         run: |
-          echo "ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}"
+          echo "CLAUDE_API_KEY: ${CLAUDE_API_KEY}"
           node mcp-server.js
         working-directory: ./mcp-server 
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
