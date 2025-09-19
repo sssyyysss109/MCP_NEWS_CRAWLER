@@ -10,6 +10,12 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
+console.log('API Key Test:');
+console.log('FIRECRAWL_API_KEY:', FIRECRAWL_API_KEY ? 'OK' : 'MISSING');
+console.log('ANTHROPIC_API_KEY:', ANTHROPIC_API_KEY ? 'OK' : 'MISSING');
+console.log('NOTION_API_KEY:', NOTION_API_KEY ? 'OK' : 'MISSING');
+console.log('NOTION_DATABASE_ID:', NOTION_DATABASE_ID ? 'OK' : 'MISSING');
+
 const notion = new Client({ auth: NOTION_API_KEY });
 
 // 🔎 Firecrawl Scrape → RSS 피드에서 기사 URL과 제목 가져오기
