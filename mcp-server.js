@@ -103,7 +103,7 @@ async function extractArticleContent(url) {
   }
 }
 
-// 🤖 Claude 요약
+// 🤖 Claude 요약 (오류 로그 개선)
 async function summarizeWithClaude(content) {
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -124,6 +124,14 @@ async function summarizeWithClaude(content) {
         ],
       }),
     });
+
+    if (!res.ok) {
+        // API 응답이 성공(2xx)이 아닐 경우, 에러 메시지를 출력합니다.
+        const errorData = await res.json();
+        console.error(`🤖 Claude API 호출 오류: ${res.status} ${res.statusText}`);
+        console.error("자세한 오류 내용:", errorData);
+        return "요약 실패";
+    }
 
     const data = await res.json();
     const summary = data?.content?.[0]?.text ?? "요약 실패";
