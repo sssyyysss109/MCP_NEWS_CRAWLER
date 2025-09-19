@@ -14,7 +14,7 @@ async function summarizeWithClaude(content) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,   // ✅ 여기 변경됨
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
@@ -84,28 +84,41 @@ async function extractArticleContent(url) {
   }
 }
 
-// 최신 뉴스 URL 가져오기 (Firecrawl search)
+// 최신 뉴스 URL 가져오기 (보안뉴스 목록 페이지 scrape)
 async function getLatestNewsUrls() {
   try {
-    const res = await fetch("https://api.firecrawl.dev/v1/search", {
+    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: "site:boannews.com 보안 뉴스",
-        num_results: 3,
+        url: "https://www.boannews.com/media/t_list.asp",
       }),
     });
 
     const data = await res.json();
-    return data?.results?.map(r => ({
-      title: r.title,
-      url: r.url,
-    })) ?? [];
+    const html = data?.content ?? "";
+
+    // 정규식으로 기사 3개 추출
+    const matches = html.matchAll(
+      /<a[^>]*href="(\/media\/view\.asp\?idx=\d+)"[^>]*class="news_txt"[^>]*>(.*?)<\/a>/g
+    );
+
+    const results = [];
+    for (const m of matches) {
+      results.push({
+        url: "https://www.boannews.com" + m[1],
+        title: m[2].trim(),
+      });
+      if (results.length >= 3) break;
+    }
+
+    console.log("📌 추출된 기사:", results);
+    return results;
   } catch (err) {
-    console.error("🔥 Firecrawl 검색 오류:", err);
+    console.error("🔥 Firecrawl 뉴스 목록 추출 오류:", err);
     return [];
   }
 }
