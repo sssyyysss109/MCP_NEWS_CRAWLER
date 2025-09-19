@@ -108,33 +108,19 @@ async function extractArticleContent(url) {
 }
 
 // 🤖 Gemini 요약
-// 🤖 Gemini 요약 (안정성 개선)
-async function summarizeWithGemini(title, content) {
+// 🤖 Gemini 요약 (단일 프롬프트 버전)
+async function summarizeWithGemini(content) {
   try {
-    // 💡 방어 코드 추가: 제목이나 본문이 없을 경우 요약 실패 반환
-    if (!title || !content) {
-      console.error("⚠️ 요약할 제목 또는 본문이 없어 요약 실패");
+    // 💡 방어 코드: 본문이 없을 경우 요약 실패 반환
+    if (!content || content.startsWith("❗")) {
+      console.error("⚠️ 요약할 본문이 없어 요약 실패");
       return "요약 실패";
     }
 
-    let prompt = "";
-    const keywords = ['사건', '사고', '해킹', '공격', '침해', '유출'];
-    const isIncident = keywords.some(keyword => title.includes(keyword) || content.includes(keyword));
-
-    if (isIncident) {
-      // 사건/사고 관련 기사 프롬프트
-      prompt = `다음 보안 기사 내용을 읽고 '문제 상황', '원인', '해결 방안'의 3가지 항목으로 나누어 정리해줘.
-      1. 문제 상황:
-      2. 원인:
-      3. 해결 방안:
-      \n\n기사 내용:\n${content}`;
-      console.log("✅ 사건/사고용 프롬프트 사용");
-    } else {
-      // 일반 기사 프롬프트
-      prompt = `다음 보안 기사 내용을 한국어로 4문장 이내로 간결하게 요약해줘. 핵심 내용과 보안 이슈를 중심으로 정리해줘.
-      \n\n기사 내용:\n${content}`;
-      console.log("✅ 일반 기사용 프롬프트 사용");
-    }
+    const prompt = `다음 보안 기사 내용을 한국어로 4문장 이내로 간결하게 요약해줘. 핵심 내용과 보안 이슈를 중심으로 정리해줘.
+    \n\n기사 내용:\n${content}`;
+    
+    console.log("✅ 단일 요약 프롬프트 사용");
 
     const result = await model.generateContent(prompt);
     const summary = result.response.text();
