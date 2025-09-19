@@ -1,4 +1,3 @@
-import puppeteer from "puppeteer";
 import dotenv from "dotenv";
 import { Client } from "@notionhq/client";
 import fetch from "node-fetch";
@@ -15,7 +14,7 @@ async function summarizeWithClaude(content) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.CLAUDE_API_KEY,
+        "x-api-key": process.env.ANTHROPIC_API_KEY,   // ✅ 여기 변경됨
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
@@ -66,7 +65,7 @@ async function saveToNotion({ title, summary, url }) {
   }
 }
 
-// 본문 크롤링 (Firecrawl)
+// 본문 크롤링 (Firecrawl scrape)
 async function extractArticleContent(url) {
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -85,24 +84,30 @@ async function extractArticleContent(url) {
   }
 }
 
-// 뉴스 목록 추출 (Puppeteer)
+// 최신 뉴스 URL 가져오기 (Firecrawl search)
 async function getLatestNewsUrls() {
-  const browser = await puppeteer.launch({ headless: "new" });
-  const page = await browser.newPage();
-  await page.goto("https://www.boannews.com/media/t_list.asp", { timeout: 0 });
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: "site:boannews.com 보안 뉴스",
+        num_results: 3,
+      }),
+    });
 
-  await page.waitForSelector("a.news_txt");
-
-  const links = await page.evaluate(() => {
-    const anchors = Array.from(document.querySelectorAll("a.news_txt"));
-    return anchors.slice(0, 3).map(a => ({
-      title: a.innerText.trim(),
-      url: "https://www.boannews.com" + a.getAttribute("href"),
-    }));
-  });
-
-  await browser.close();
-  return links;
+    const data = await res.json();
+    return data?.results?.map(r => ({
+      title: r.title,
+      url: r.url,
+    })) ?? [];
+  } catch (err) {
+    console.error("🔥 Firecrawl 검색 오류:", err);
+    return [];
+  }
 }
 
 // 🔥 전체 파이프라인 실행
@@ -113,7 +118,7 @@ async function runPipeline() {
     const articles = await getLatestNewsUrls();
 
     for (const [i, { title, url }] of articles.entries()) {
-      console.log(`\n📰 [${i + 1}] 본문 크롤링: ${url}`);
+      console.log(`\n📰 [${i + 1}] 기사: ${url}`);
 
       const content = await extractArticleContent(url);
       if (!content || content.startsWith("❗")) {
