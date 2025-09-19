@@ -23,10 +23,10 @@ jobs:
 
       - name: Run script
         run: |
-          echo "CLAUDE_API_KEY: ${CLAUDE_API_KEY}"
+          echo "GEMINI_API_KEY: ${GEMINI_API_KEY}"
           node mcp-server.js
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
