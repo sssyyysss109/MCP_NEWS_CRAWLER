@@ -7,23 +7,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-news-crawler:
+  crawl-and-save:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install deps
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
         run: npm install
 
-      - name: Run MCP pipeline
-        run: node mcp-server.js
+      - name: Run script
+        run: |
+          echo "ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}"
+          node mcp-server.js
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
