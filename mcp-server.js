@@ -1,13 +1,9 @@
-import express from "express";
 import puppeteer from "puppeteer";
 import dotenv from "dotenv";
 import { Client } from "@notionhq/client";
 import fetch from "node-fetch";
 
 dotenv.config();
-
-const app = express();
-const port = 3000;
 
 // Notion 클라이언트
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
@@ -110,7 +106,7 @@ async function getLatestNewsUrls() {
 }
 
 // 🔥 전체 파이프라인 실행
-app.post("/firecrawl", async (req, res) => {
+async function runPipeline() {
   try {
     console.log("🚀 보안뉴스 수집 시작...");
 
@@ -120,20 +116,20 @@ app.post("/firecrawl", async (req, res) => {
       console.log(`\n📰 [${i + 1}] 본문 크롤링: ${url}`);
 
       const content = await extractArticleContent(url);
-      if (!content || content.startsWith("❗")) throw new Error("본문 없음");
+      if (!content || content.startsWith("❗")) {
+        console.warn("본문 없음, 건너뜀");
+        continue;
+      }
 
       const summary = await summarizeWithClaude(content);
-
       await saveToNotion({ title, summary, url });
     }
 
-    res.send("✅ 전체 작업 완료 (크롤링 → 요약 → Notion)");
+    console.log("✅ 전체 작업 완료 (크롤링 → 요약 → Notion)");
   } catch (err) {
     console.error("❌ 크롤링 오류:", err);
-    res.status(500).send("크롤링 실패: " + err.message);
   }
-});
+}
 
-app.listen(port, () => {
-  console.log(`✅ MCP 서버 실행됨: http://localhost:${port}`);
-});
+// 실행 엔트리포인트
+runPipeline();
