@@ -40,7 +40,6 @@ async function getLatestNewsFromHtml() {
       if (title && relativeUrl && articles.length < 5) {
         const absoluteUrl = `https://www.boannews.com${relativeUrl.replace('../', '/')}`;
         articles.push({ title, url: absoluteUrl });
-        console.log(`✅ 주요기사 발견: ${title}`);
       }
     });
 
@@ -53,7 +52,6 @@ async function getLatestNewsFromHtml() {
       if (title && relativeUrl && articles.length < 5) {
         const absoluteUrl = `https://www.boannews.com${relativeUrl.replace('../', '/')}`;
         articles.push({ title, url: absoluteUrl });
-        console.log(`✅ 일반기사 발견: ${title}`);
       }
     });
     
@@ -65,7 +63,7 @@ async function getLatestNewsFromHtml() {
   }
 }
 
-// 📄 기사 본문 추출 (개별 기사 페이지)
+// 📄 기사 본문 추출 (개선된 코드)
 async function extractArticleContent(url) {
   try {
     const res = await fetch(url, {
@@ -76,10 +74,22 @@ async function extractArticleContent(url) {
     const htmlContent = await res.text();
     const $ = cheerio.load(htmlContent);
     
-    // 본문 ID로 추출
-    const content = $('#news_content').text().trim();
+    // 1차 시도: news_content ID로 본문 추출
+    let content = $('#news_content').text().trim();
+    
+    // 2차 시도: 만약 내용이 없으면 itemprop="articleBody"로 추출
+    if (!content) {
+      content = $('div[itemprop="articleBody"]').text().trim();
+    }
+    
+    if (content.length > 100) { // 최소한의 본문 길이 확인
+      console.log('✅ 본문 추출 성공');
+      return content;
+    } else {
+      console.log('⚠️ 본문 추출 실패: 올바른 CSS 셀렉터를 찾을 수 없거나 내용이 너무 짧습니다.');
+      return "❗본문 없음";
+    }
 
-    return content || "❗본문 없음";
   } catch (err) {
     console.error("🔥 본문 추출 오류:", err);
     return "❗본문 없음";
@@ -141,6 +151,7 @@ async function saveToNotion({ title, summary, url }) {
     console.log(`✅ Notion 저장 완료: ${title}`);
   } catch (err) {
     console.error(`📝 Notion 저장 오류: ${title}`, err);
+    console.error(err);
   }
 }
 
