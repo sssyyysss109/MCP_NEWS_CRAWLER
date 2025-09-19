@@ -108,9 +108,15 @@ async function extractArticleContent(url) {
 }
 
 // 🤖 Gemini 요약
-// 🤖 Gemini 요약 (프롬프트 제어 로직 추가)
+// 🤖 Gemini 요약 (안정성 개선)
 async function summarizeWithGemini(title, content) {
   try {
+    // 💡 방어 코드 추가: 제목이나 본문이 없을 경우 요약 실패 반환
+    if (!title || !content) {
+      console.error("⚠️ 요약할 제목 또는 본문이 없어 요약 실패");
+      return "요약 실패";
+    }
+
     let prompt = "";
     const keywords = ['사건', '사고', '해킹', '공격', '침해', '유출'];
     const isIncident = keywords.some(keyword => title.includes(keyword) || content.includes(keyword));
