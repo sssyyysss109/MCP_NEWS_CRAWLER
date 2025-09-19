@@ -33,6 +33,9 @@ async function getLatestNewsFromRss() {
       return [];
     }
 
+    // 📌 이 부분을 추가
+    console.log("📌 Firecrawl이 스크랩한 XML 내용:", xmlContent); 
+
     // xml2js 라이브러리로 XML 파싱
     const result = await parseStringPromise(xmlContent);
     const articles = result.rss.channel[0].item.slice(0, 3).map(item => ({
