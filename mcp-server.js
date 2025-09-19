@@ -85,6 +85,7 @@ async function extractArticleContent(url) {
 }
 
 // 최신 뉴스 URL 가져오기 (보안뉴스 목록 페이지 scrape)
+// 최신 뉴스 URL 가져오기 (보안뉴스 목록 페이지 scrape)
 async function getLatestNewsUrls() {
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -95,11 +96,12 @@ async function getLatestNewsUrls() {
       },
       body: JSON.stringify({
         url: "https://www.boannews.com/media/t_list.asp",
+        extract: false   // ✅ HTML 원본 요청
       }),
     });
 
     const data = await res.json();
-    const html = data?.content ?? "";
+    const html = data?.html ?? "";   // ✅ content 대신 html 필드 사용
 
     // 정규식으로 기사 3개 추출
     const matches = html.matchAll(
