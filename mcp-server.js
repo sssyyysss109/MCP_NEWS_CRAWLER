@@ -6,13 +6,13 @@ import { parseStringPromise } from 'xml2js';
 dotenv.config();
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 console.log('API Key Test:');
 console.log('FIRECRAWL_API_KEY:', FIRECRAWL_API_KEY ? 'OK' : 'MISSING');
-console.log('ANTHROPIC_API_KEY:', ANTHROPIC_API_KEY ? 'OK' : 'MISSING');
+console.log('CLAUDE_API_KEY:', CLAUDE_API_KEY ? 'OK' : 'MISSING');
 console.log('NOTION_API_KEY:', NOTION_API_KEY ? 'OK' : 'MISSING');
 console.log('NOTION_DATABASE_ID:', NOTION_DATABASE_ID ? 'OK' : 'MISSING');
 
@@ -82,7 +82,7 @@ async function summarizeWithClaude(content) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": CLAUDE_API_KEY,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
