@@ -2,8 +2,8 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import { Client } from "@notionhq/client";
 import * as cheerio from "cheerio";
+import iconv from 'iconv-lite';
 
-// .env 파일에서 환경 변수를 로드합니다.
 dotenv.config();
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -12,7 +12,7 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// 🔎 HTML 페이지에서 기사 목록 가져오기
+// 🔎 HTML 페이지에서 기사 목록 가져오기 (인코딩 문제 해결)
 async function getLatestNewsFromHtml() {
   const url = "https://www.boannews.com/media/list.asp?kind=1";
   try {
@@ -21,7 +21,10 @@ async function getLatestNewsFromHtml() {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
-    const htmlContent = await res.text();
+    
+    // EUC-KR 인코딩 변환
+    const buffer = await res.buffer();
+    const htmlContent = iconv.decode(buffer, 'euc-kr');
 
     if (!htmlContent) {
       console.error("🔥 스크랩 실패: 본문이 비어있습니다.");
@@ -63,7 +66,7 @@ async function getLatestNewsFromHtml() {
   }
 }
 
-// 📄 기사 본문 추출 (개선된 코드)
+// 📄 기사 본문 추출 (인코딩 문제 해결)
 async function extractArticleContent(url) {
   try {
     const res = await fetch(url, {
@@ -71,7 +74,11 @@ async function extractArticleContent(url) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
-    const htmlContent = await res.text();
+
+    // EUC-KR 인코딩 변환
+    const buffer = await res.buffer();
+    const htmlContent = iconv.decode(buffer, 'euc-kr');
+    
     const $ = cheerio.load(htmlContent);
     
     // 1차 시도: news_content ID로 본문 추출
