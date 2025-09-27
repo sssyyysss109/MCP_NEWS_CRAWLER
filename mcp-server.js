@@ -13,12 +13,22 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const notion = new Client({ auth: NOTION_API_KEY });
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// 모델 이름을 'gemini-1.0-pro'로 변경했습니다.
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
+// ✅ 오늘 날짜를 기반으로 검색 URL 생성
+function getTodayUrl() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  
+  return `https://www.boannews.com/media/t_list.asp?kind=2&s_y=${year}&s_m=${month}&s_d=${day}&e_y=${year}&e_m=${month}&e_d=${day}`;
+}
 
 // 🔎 HTML 페이지에서 기사 목록 가져오기 (인코딩 문제 해결)
 async function getLatestNewsFromHtml() {
-  const url = "https://www.boannews.com/media/list.asp?kind=1";
+  const url = getTodayUrl(); // ✅ 변경된 URL 사용
+  
   try {
     const res = await fetch(url, {
       headers: {
@@ -26,7 +36,6 @@ async function getLatestNewsFromHtml() {
       }
     });
     
-    // EUC-KR 인코딩 변환
     const buffer = await res.buffer();
     const htmlContent = iconv.decode(buffer, 'euc-kr');
 
@@ -37,31 +46,23 @@ async function getLatestNewsFromHtml() {
 
     const $ = cheerio.load(htmlContent);
     const articles = [];
+    const existingUrls = new Set(); // ✅ 중복 검사 로직 추가
     
-    // 💡 주요 기사 추출 (.news_main)
-    $('.news_main').each((index, element) => {
-      const titleElement = $(element).find('.news_main_title a');
+    $('.news_main, .news_list').each((index, element) => { // ✅ 선택자 통합
+      const isMain = $(element).hasClass('news_main');
+      const titleElement = isMain ? $(element).find('.news_main_title a') : $(element).find('a .news_txt');
       const title = titleElement.text().trim();
-      const relativeUrl = titleElement.attr('href');
+      const relativeUrl = isMain ? titleElement.attr('href') : $(element).find('a').first().attr('href');
 
-      if (title && relativeUrl && articles.length < 5) {
+      if (title && relativeUrl) {
         const absoluteUrl = `https://www.boannews.com${relativeUrl.replace('../', '/')}`;
-        articles.push({ title, url: absoluteUrl });
+        if (!existingUrls.has(absoluteUrl)) {
+          articles.push({ title, url: absoluteUrl });
+          existingUrls.add(absoluteUrl);
+        }
       }
     });
 
-    // 💡 일반 기사 추출 (.news_list)
-    $('.news_list').each((index, element) => {
-      const titleElement = $(element).find('a .news_txt');
-      const title = titleElement.text().trim();
-      const relativeUrl = $(element).find('a').first().attr('href');
-
-      if (title && relativeUrl && articles.length < 5) {
-        const absoluteUrl = `https://www.boannews.com${relativeUrl.replace('../', '/')}`;
-        articles.push({ title, url: absoluteUrl });
-      }
-    });
-    
     console.log(`📌 총 ${articles.length}개 기사 추출 완료`);
     return articles;
   } catch (err) {
@@ -79,21 +80,17 @@ async function extractArticleContent(url) {
       }
     });
 
-    // EUC-KR 인코딩 변환
     const buffer = await res.buffer();
     const htmlContent = iconv.decode(buffer, 'euc-kr');
     
     const $ = cheerio.load(htmlContent);
-    
-    // 1차 시도: news_content ID로 본문 추출
     let content = $('#news_content').text().trim();
     
-    // 2차 시도: 만약 내용이 없으면 itemprop="articleBody"로 추출
     if (!content) {
       content = $('div[itemprop="articleBody"]').text().trim();
     }
     
-    if (content.length > 100) { // 최소한의 본문 길이 확인
+    if (content.length > 100) {
       console.log('✅ 본문 추출 성공');
       return content;
     } else {
@@ -107,11 +104,26 @@ async function extractArticleContent(url) {
   }
 }
 
+// 🤖 Gemini 필터링 (보안 관련 기사인지 판단)
+async function isSecurityArticle(title) {
+  try {
+    const prompt = `다음 기사 제목이 보안 관련 기사인지 '예' 또는 '아니오'로만 답해줘.
+    \n\n기사 제목: ${title}`;
+    
+    const result = await model.generateContent(prompt);
+    const answer = result.response.text().trim();
+    
+    console.log(`🤖 "${title}" -> 판단: ${answer}`);
+    return answer.includes('예');
+  } catch (err) {
+    console.error("🤖 Gemini 필터링 오류:", err);
+    return false;
+  }
+}
+
 // 🤖 Gemini 요약
-// 🤖 Gemini 요약 (단일 프롬프트 버전)
 async function summarizeWithGemini(content) {
   try {
-    // 💡 방어 코드: 본문이 없을 경우 요약 실패 반환
     if (!content || content.startsWith("❗")) {
       console.error("⚠️ 요약할 본문이 없어 요약 실패");
       return "요약 실패";
@@ -120,8 +132,6 @@ async function summarizeWithGemini(content) {
     const prompt = `다음 보안 기사 내용을 한국어로 4문장 이내로 간결하게 요약해줘. 핵심 내용과 보안 이슈를 중심으로 정리해줘.
     \n\n기사 내용:\n${content}`;
     
-    console.log("✅ 단일 요약 프롬프트 사용");
-
     const result = await model.generateContent(prompt);
     const summary = result.response.text();
 
@@ -174,11 +184,20 @@ async function runPipeline() {
   for (const { title, url } of articles) {
     console.log(`\n📰 처리 중: ${title}`);
     console.log(`🔗 URL: ${url}`);
+    
+    // 🤖 Gemini 필터링 단계 추가
+    const isRelevant = await isSecurityArticle(title);
+    if (!isRelevant) {
+      console.log("➡️ 보안 관련 기사가 아님, 건너뜀.");
+      continue;
+    }
+
     const content = await extractArticleContent(url);
     if (!content || content.startsWith("❗")) {
       console.warn("⚠️ 본문이 없음, 건너뜀");
       continue;
     }
+    
     const summary = await summarizeWithGemini(content);
     await saveToNotion({ title, summary, url });
   }
