@@ -13,7 +13,7 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const notion = new Client({ auth: NOTION_API_KEY });
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 // ✅ 오늘 날짜를 기반으로 검색 URL 생성
 function getTodayUrl() {
