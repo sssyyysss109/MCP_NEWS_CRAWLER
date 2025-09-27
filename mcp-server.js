@@ -1,9 +1,9 @@
-import dotenv from "dotenv";
-import fetch from "node-fetch";
-import { Client } from "@notionhq/client";
-import * as cheerio from "cheerio";
-import iconv from 'iconv-lite';
-import OpenAI from "openai";
+const dotenv = require("dotenv");
+const fetch = require("node-fetch");
+const { Client } = require("@notionhq/client");
+const cheerio = require("cheerio");
+const iconv = require('iconv-lite');
+const OpenAI = require("openai");
 
 dotenv.config();
 
@@ -20,6 +20,7 @@ function getTodayUrl() {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   
+  // 오늘 날짜로 t_list.asp 검색 URL 생성
   return `https://www.boannews.com/media/t_list.asp?kind=2&s_y=${year}&s_m=${month}&s_d=${day}&e_y=${year}&e_m=${month}&e_d=${day}`;
 }
 
@@ -33,6 +34,7 @@ async function getLatestNewsFromHtml() {
       }
     });
     
+    // euc-kr 인코딩 처리
     const buffer = await res.buffer();
     const htmlContent = iconv.decode(buffer, 'euc-kr');
 
@@ -45,6 +47,7 @@ async function getLatestNewsFromHtml() {
     const articles = [];
     const existingUrls = new Set();
     
+    // 메인 뉴스 (.news_main)와 리스트 뉴스 (.news_list) 모두 처리
     $('.news_main, .news_list').each((index, element) => {
       const isMain = $(element).hasClass('news_main');
       const titleElement = isMain ? $(element).find('.news_main_title a') : $(element).find('a .news_txt');
@@ -53,6 +56,7 @@ async function getLatestNewsFromHtml() {
 
       if (title && relativeUrl) {
         const absoluteUrl = `https://www.boannews.com${relativeUrl.replace('../', '/')}`;
+        // 중복 URL 검사 및 추가
         if (!existingUrls.has(absoluteUrl)) {
           articles.push({ title, url: absoluteUrl });
           existingUrls.add(absoluteUrl);
@@ -80,6 +84,7 @@ async function extractArticleContent(url) {
     const htmlContent = iconv.decode(buffer, 'euc-kr');
     
     const $ = cheerio.load(htmlContent);
+    // 본문 추출 시도 (두 가지 주요 셀렉터 사용)
     let content = $('#news_content').text().trim();
     
     if (!content) {
@@ -90,7 +95,7 @@ async function extractArticleContent(url) {
       console.log('✅ 본문 추출 성공');
       return content;
     } else {
-      console.log('⚠️ 본문 추출 실패: 올바른 CSS 셀렉터를 찾을 수 없거나 내용이 너무 짧습니다.');
+      console.warn('⚠️ 본문 추출 실패: 올바른 CSS 셀렉터를 찾을 수 없거나 내용이 너무 짧습니다.');
       return "❗본문 없음";
     }
 
@@ -100,6 +105,7 @@ async function extractArticleContent(url) {
   }
 }
 
+// OpenAI를 이용한 보안 관련 기사 필터링
 async function isSecurityArticle(title) {
   try {
     const completion = await openai.chat.completions.create({
@@ -118,7 +124,7 @@ async function isSecurityArticle(title) {
   }
 }
 
-// ✅ 구조화된 보고서 생성을 위한 프롬프트로 변경
+// ✅ 구조화된 보고서 생성을 위한 프롬프트 적용
 async function createStructuredReport(content) {
   try {
     if (!content || content.startsWith("❗")) {
@@ -167,7 +173,7 @@ async function saveToNotion({ title, summary, url }) {
           url: url,
         },
         "내용": {
-          // ✅ rich_text 대신 content 속성에 보고서 내용 전체를 저장
+          // 구조화된 보고서 내용을 Notion의 '내용' 필드에 저장
           rich_text: [{ text: { content: summary } }],
         },
       },
@@ -202,8 +208,8 @@ async function runPipeline() {
       continue;
     }
     
-    const report = await createStructuredReport(content); // ✅ 구조화된 보고서 생성 함수 호출
-    await saveToNotion({ title, summary: report, url }); // ✅ summary 대신 report 변수 전달
+    const report = await createStructuredReport(content);
+    await saveToNotion({ title, summary: report, url });
   }
   console.log("✅ 전체 파이프라인 완료!");
 }
