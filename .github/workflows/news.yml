@@ -2,8 +2,8 @@ name: Security News Automation
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # 매일 00:00 UTC 실행 (한국 09:00)
-    #- cron: "*/5 * * * *"   # 매 5분마다 실행
+    - cron: "0 0 * * *"    # 매일 00:00 UTC 실행 (한국 09:00)
+    #- cron: "*/5 * * * *"  # 매 5분마다 실행
   workflow_dispatch:
 
 jobs:
@@ -23,9 +23,10 @@ jobs:
 
       - name: Run script
         run: |
-          echo "OPENAI_API_KEY: ${OPENAI_API_KEY}"
+          echo "OPENAI_API_KEY: $OPENAI_API_KEY"  # Secret 참조 시 $ 기호만 사용
           node mcp-server.js
         env:
+          # Secret 값을 환경 변수로 매핑
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}

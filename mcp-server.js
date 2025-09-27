@@ -1,9 +1,9 @@
-const dotenv = require("dotenv");
-const fetch = require("node-fetch");
-const { Client } = require("@notionhq/client");
-const cheerio = require("cheerio");
-const iconv = require('iconv-lite');
-const OpenAI = require("openai");
+import dotenv from "dotenv";
+import fetch from "node-fetch";
+import { Client } from "@notionhq/client";
+import * as cheerio from "cheerio";
+import iconv from 'iconv-lite';
+import OpenAI from "openai";
 
 dotenv.config();
 
