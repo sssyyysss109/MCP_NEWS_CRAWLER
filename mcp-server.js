@@ -3,19 +3,17 @@ import fetch from "node-fetch";
 import { Client } from "@notionhq/client";
 import * as cheerio from "cheerio";
 import iconv from 'iconv-lite';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from "openai";
 
 dotenv.config();
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 const notion = new Client({ auth: NOTION_API_KEY });
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// ✅ 오늘 날짜를 기반으로 검색 URL 생성
 function getTodayUrl() {
   const today = new Date();
   const year = today.getFullYear();
@@ -25,9 +23,8 @@ function getTodayUrl() {
   return `https://www.boannews.com/media/t_list.asp?kind=2&s_y=${year}&s_m=${month}&s_d=${day}&e_y=${year}&e_m=${month}&e_d=${day}`;
 }
 
-// 🔎 HTML 페이지에서 기사 목록 가져오기 (인코딩 문제 해결)
 async function getLatestNewsFromHtml() {
-  const url = getTodayUrl(); // ✅ 변경된 URL 사용
+  const url = getTodayUrl();
   
   try {
     const res = await fetch(url, {
@@ -46,9 +43,9 @@ async function getLatestNewsFromHtml() {
 
     const $ = cheerio.load(htmlContent);
     const articles = [];
-    const existingUrls = new Set(); // ✅ 중복 검사 로직 추가
+    const existingUrls = new Set();
     
-    $('.news_main, .news_list').each((index, element) => { // ✅ 선택자 통합
+    $('.news_main, .news_list').each((index, element) => {
       const isMain = $(element).hasClass('news_main');
       const titleElement = isMain ? $(element).find('.news_main_title a') : $(element).find('a .news_txt');
       const title = titleElement.text().trim();
@@ -71,7 +68,6 @@ async function getLatestNewsFromHtml() {
   }
 }
 
-// 📄 기사 본문 추출 (인코딩 문제 해결)
 async function extractArticleContent(url) {
   try {
     const res = await fetch(url, {
@@ -104,48 +100,57 @@ async function extractArticleContent(url) {
   }
 }
 
-// 🤖 Gemini 필터링 (보안 관련 기사인지 판단)
 async function isSecurityArticle(title) {
   try {
-    const prompt = `다음 기사 제목이 보안 관련 기사인지 '예' 또는 '아니오'로만 답해줘.
-    \n\n기사 제목: ${title}`;
-    
-    const result = await model.generateContent(prompt);
-    const answer = result.response.text().trim();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "user", content: `다음 기사 제목이 보안 관련 기사인지 '예' 또는 '아니오'로만 답해줘.\n\n기사 제목: ${title}` },
+      ],
+    });
+    const answer = completion.choices[0].message.content.trim();
     
     console.log(`🤖 "${title}" -> 판단: ${answer}`);
     return answer.includes('예');
   } catch (err) {
-    console.error("🤖 Gemini 필터링 오류:", err);
+    console.error("🤖 OpenAI 필터링 오류:", err);
     return false;
   }
 }
 
-// 🤖 Gemini 요약
-async function summarizeWithGemini(content) {
+// ✅ 구조화된 보고서 생성을 위한 프롬프트로 변경
+async function createStructuredReport(content) {
   try {
     if (!content || content.startsWith("❗")) {
-      console.error("⚠️ 요약할 본문이 없어 요약 실패");
-      return "요약 실패";
+      console.error("⚠️ 요약할 본문이 없어 보고서 생성 실패");
+      return "보고서 생성 실패";
     }
 
-    const prompt = `다음 보안 기사 내용을 한국어로 4문장 이내로 간결하게 요약해줘. 핵심 내용과 보안 이슈를 중심으로 정리해줘.
+    const prompt = `다음 기사 내용을 바탕으로 '보안 경고 보고서'를 작성해줘. 보고서는 다음 항목을 포함해야 해. 각 항목을 명확한 제목과 함께 간결한 문장으로 정리해줘.
+    \n\n- 배경 및 위협: 왜 위협이 증가하는지, 공격의 목적은 무엇인지 간결하게 요약해줘.
+    \n- 공격 수법: 공격이 무엇인지 정의하고, 어떤 수법으로 공격이 이뤄지는지 설명해줘.
+    \n- 정부의 대응 및 주의사항: 정부의 대응 방안과 사용자들이 어떤 점을 주의해야 하는지 핵심적인 내용을 정리해줘.
+    \n- 분석 및 특징: 1차 관련 사례를 바탕으로 주로 어떤 유형의 공격이 발생했는지 분석해줘.
     \n\n기사 내용:\n${content}`;
     
-    const result = await model.generateContent(prompt);
-    const summary = result.response.text();
-
-    if (!summary) {
-      throw new Error("Gemini API에서 요약 내용을 반환하지 않았습니다.");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "user", content: prompt },
+      ],
+    });
+    const report = completion.choices[0].message.content.trim();
+    
+    if (!report) {
+      throw new Error("OpenAI API에서 보고서 내용을 반환하지 않았습니다.");
     }
-    return summary;
+    return report;
   } catch (err) {
-    console.error("🤖 Gemini API 호출 오류:", err);
-    return "요약 실패";
+    console.error("🤖 OpenAI API 호출 오류:", err);
+    return "보고서 생성 실패";
   }
 }
 
-// 📝 Notion 저장
 async function saveToNotion({ title, summary, url }) {
   const today = new Date().toISOString();
   try {
@@ -162,6 +167,7 @@ async function saveToNotion({ title, summary, url }) {
           url: url,
         },
         "내용": {
+          // ✅ rich_text 대신 content 속성에 보고서 내용 전체를 저장
           rich_text: [{ text: { content: summary } }],
         },
       },
@@ -173,7 +179,6 @@ async function saveToNotion({ title, summary, url }) {
   }
 }
 
-// 🚀 실행
 async function runPipeline() {
   console.log("🚀 자체 스크래핑 기반 보안뉴스 수집 시작...");
   const articles = await getLatestNewsFromHtml();
@@ -185,7 +190,6 @@ async function runPipeline() {
     console.log(`\n📰 처리 중: ${title}`);
     console.log(`🔗 URL: ${url}`);
     
-    // 🤖 Gemini 필터링 단계 추가
     const isRelevant = await isSecurityArticle(title);
     if (!isRelevant) {
       console.log("➡️ 보안 관련 기사가 아님, 건너뜀.");
@@ -198,8 +202,8 @@ async function runPipeline() {
       continue;
     }
     
-    const summary = await summarizeWithGemini(content);
-    await saveToNotion({ title, summary, url });
+    const report = await createStructuredReport(content); // ✅ 구조화된 보고서 생성 함수 호출
+    await saveToNotion({ title, summary: report, url }); // ✅ summary 대신 report 변수 전달
   }
   console.log("✅ 전체 파이프라인 완료!");
 }
